@@ -63,12 +63,19 @@
     box-shadow:0 4px 20px rgba(0,0,0,.4);
     padding:24px 20px 26px; margin-bottom:22px;
   }
+  /* on replay the chooser becomes a centered card floating over the dimmed
+     battlefield; #veil is the full-screen dim layer behind it */
   .chooser.overlay{
-    position:fixed; inset:0; z-index:50; margin:0; border:none; border-radius:0;
-    justify-content:center; background:rgba(15,17,22,.96);
-    padding:24px 20px;
+    position:fixed; z-index:51; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:min(92%,440px); margin:0;
+    border:1px solid #3a4150; border-radius:6px; background:#21252e;
+    box-shadow:0 8px 40px rgba(0,0,0,.6);
   }
-  .chooser.overlay > *{max-width:520px}
+  #veil{
+    display:none; position:fixed; inset:0; z-index:50;
+    background:rgba(13,15,20,.7);
+  }
+  #veil.on{display:block}
   .chooser h2{
     font-size:23px; font-weight:700; letter-spacing:.06em; color:var(--ink);
     margin-bottom:2px;
@@ -100,6 +107,7 @@
 </style>
 </head>
 <body>
+<div id="veil"></div>
 <header>
   <h1>The Field</h1>
 </header>
@@ -690,6 +698,7 @@ function restart(){
   document.getElementById('endScreen').style.display='none';
   // hide the setup choosers and reveal the board + hud
   document.getElementById('setup').style.display='none';
+  document.getElementById('veil').classList.remove('on');
   document.getElementById('choiceScreen').classList.remove('overlay');
   document.getElementById('openingScreen').classList.remove('overlay');
   document.getElementById('choiceScreen').style.display='none';
@@ -715,6 +724,11 @@ function showChoice(){
   over=true; dragIdx=-1;
   document.getElementById('orderBtn').disabled=true;
   document.getElementById('endScreen').style.display='none';
+  // hide the surrounding interface so only the frozen battlefield shows behind
+  // the choice panel — no leftover controls or clipped log text
+  document.querySelector('.controls').style.display='none';
+  document.querySelector('.log').style.display='none';
+  document.getElementById('veil').classList.add('on');
   const cs=document.getElementById('choiceScreen'), os=document.getElementById('openingScreen');
   cs.classList.add('overlay'); os.classList.add('overlay');
   os.style.display='none';
