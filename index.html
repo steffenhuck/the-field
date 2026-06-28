@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Field</title>
+<script data-goatcounter="https://steffenhuck.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<style>
+  :root{
+    --bg:#14161c; --panel:#1c1f27; --ink:#cfd4dc; --faint:#7c828f;
+    --accent:#566a82; --accent-hi:#67809e; --line:#2c303a;
+    --blue:#5a7a9a; --red:#9a5a52;
+    --gold:#d8a13a; --gold-hi:#e8b954;
+    --azure:#6aa0d2; --azure-hi:#7fb3e6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:Georgia,'Times New Roman',serif; line-height:1.5;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    padding:28px 16px 60px; position:relative;
+  }
+  header{text-align:center;margin-bottom:6px;margin-top:8px}
+  h1{font-size:34px;font-weight:800;letter-spacing:.02em;margin-bottom:4px;color:var(--azure-hi);opacity:1;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+  .sub{font-size:13px;color:var(--faint);font-style:italic;margin-bottom:22px;text-align:center;max-width:480px}
+  .field-wrap{position:relative;width:100%;max-width:560px}
+  canvas{display:block;width:100%;height:auto;aspect-ratio:1/1;background:#0f1116;border:1px solid var(--line);touch-action:none}
+  .hud{display:flex;justify-content:space-between;width:100%;max-width:560px;margin:14px 0 4px;font-size:12px;letter-spacing:.06em}
+  .force{display:flex;flex-direction:column;gap:3px}
+  .force .name{text-transform:uppercase;letter-spacing:.18em;font-size:10px;color:var(--faint)}
+  .force .val{font-size:22px;font-variant-numeric:tabular-nums}
+  .force.blue .val{color:#8fb0cf}
+  .force.red .val{color:#cf928a;text-align:right}
+  .force.red{text-align:right}
+  .bar{height:3px;background:#2a2d20;margin-top:4px;width:170px}
+  .bar > span{display:block;height:100%}
+  .blue .bar > span{background:var(--blue)}
+  .red .bar{margin-left:auto}
+  .red .bar > span{background:var(--red);margin-left:auto}
+  .controls{width:100%;max-width:560px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+  .btnrow{display:flex;gap:10px}
+  button{
+    flex:1;background:var(--accent);color:var(--ink);border:1px solid var(--line);
+    font-family:inherit;font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    padding:11px;cursor:pointer;transition:background .15s;
+  }
+  button:hover{background:var(--accent-hi)}
+  button:disabled{opacity:.4;cursor:default}
+  button.ghost{background:transparent;color:var(--faint)}
+  button.ghost:hover{background:var(--panel);color:var(--ink)}
+  .log{width:100%;max-width:560px;margin-top:18px;font-size:12px;color:var(--faint);font-style:italic;min-height:20px;text-align:center}
+  .help{font-size:11px;color:var(--faint);margin-top:10px;text-align:center;max-width:520px;line-height:1.6}
+  .end{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(15,17,22,.9);text-align:center;gap:14px}
+  .end h2{font-size:26px;font-weight:normal;letter-spacing:.05em}
+  .end p{font-size:13px;color:var(--faint);font-style:italic;max-width:320px}
+
+  /* the chooser — sits in page flow on first load, overlays the board on replay */
+  .chooser{
+    width:100%; max-width:560px; display:flex; flex-direction:column;
+    align-items:center; gap:13px; text-align:center;
+    border:1px solid var(--line); border-radius:3px;
+    background:rgba(24,27,34,.7);
+    padding:24px 20px 26px; margin-bottom:22px;
+  }
+  .chooser.overlay{
+    position:fixed; inset:0; z-index:50; margin:0; border:none; border-radius:0;
+    justify-content:center; background:rgba(15,17,22,.96);
+    padding:24px 20px;
+  }
+  .chooser.overlay > *{max-width:520px}
+  .chooser h2{
+    font-size:23px; font-weight:700; letter-spacing:.06em; color:var(--ink);
+    margin-bottom:2px;
+  }
+  .chooser .rule{width:48px;height:2px;background:var(--azure-hi);opacity:.8;margin:-3px 0 4px;border-radius:2px}
+  .chooser .lead{font-size:12.5px;color:#aeb4bf;font-style:italic;max-width:330px;margin-bottom:2px}
+  .chooserow{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .chooselbl{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint)}
+  .opts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .opt{
+    background:#1b1e26;color:#c2c7d0;border:1px solid #353a45;border-radius:3px;
+    font-family:inherit;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    padding:9px 14px;cursor:pointer;transition:all .15s;flex:none;max-width:none;
+  }
+  .opt:hover{color:#fff;border-color:var(--azure-hi)}
+  .opt.sel{
+    background:#10243a;color:#cfe6ff;border-color:var(--azure-hi);
+    box-shadow:0 0 0 1px var(--azure-hi), 0 0 14px rgba(106,160,210,.4);
+  }
+  .choosehint{font-size:11.5px;color:#9aa0ab;font-style:italic;max-width:330px;text-align:center;min-height:16px;line-height:1.45}
+  .go{
+    margin-top:8px; min-width:210px; max-width:240px; flex:0 0 auto; align-self:center;
+    background:var(--azure-hi); color:#0a1420; border:1px solid #8fb6dc; border-radius:3px;
+    font-family:inherit; font-size:13px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+    padding:12px 18px; cursor:pointer; transition:all .15s;
+    box-shadow:0 0 16px rgba(106,160,210,.3);
+  }
+  .go:hover{background:#86abd4;box-shadow:0 0 22px rgba(106,160,210,.5)}
+</style>
+</head>
+<body>
+<header>
+  <h1>The Field</h1>
+</header>
+<div class="sub">Your army is three corps, each a cloud of troops spread across the ground. Every node you drag is a corps; send them where you will — massed into a fist, fanned wide, or held in reserve — then give the order. Corps will not pile onto a single spot, so to concentrate is to gather them into a dense mass. Where your troops outnumber theirs on a patch of ground, you take it; where forces merely meet as equals, both sides bleed for nothing.</div>
+
+<div id="setup">
+  <div class="chooser" id="choiceScreen">
+    <h2>Your Battle</h2>
+    <div class="rule"></div>
+    <div class="chooserow">
+      <span class="chooselbl">Opponent</span>
+      <div class="opts" id="oppOpts">
+        <button class="opt sel" data-v="easy" onclick="pickOpp('easy')">Cadet</button>
+        <button class="opt" data-v="hard" onclick="pickOpp('hard')">Marshal</button>
+      </div>
+      <span class="choosehint" id="oppHint">The Cadet follows one doctrine you can learn to read.</span>
+    </div>
+    <div class="chooserow">
+      <span class="chooselbl">Strength</span>
+      <div class="opts" id="strOpts">
+        <button class="opt" data-v="reinforced" onclick="pickStr('reinforced')">Reinforced</button>
+        <button class="opt sel" data-v="even" onclick="pickStr('even')">Even</button>
+        <button class="opt" data-v="outnumbered" onclick="pickStr('outnumbered')">Outnumbered</button>
+      </div>
+      <span class="choosehint" id="strHint">Equal armies — the contest is decided by skill alone.</span>
+    </div>
+    <button class="go" onclick="toGround()">To the Ground →</button>
+  </div>
+
+  <div class="chooser" id="openingScreen" style="display:none">
+    <h2>Choose the Ground</h2>
+    <div class="rule"></div>
+    <p class="lead">A Set Piece begins from even, mirrored lines. An Encounter throws both armies onto uneven ground — equal numbers, but scattered, so one side may open better placed than the other.</p>
+    <div class="chooserow">
+      <div class="opts" id="groundOpts">
+        <button class="opt sel" data-v="fixed" onclick="pickGround('fixed')">Set Piece</button>
+        <button class="opt" data-v="scattered" onclick="pickGround('scattered')">Encounter</button>
+      </div>
+      <span class="choosehint" id="groundHint">Even, mirrored lines — a fair and equal start.</span>
+    </div>
+    <button class="go" onclick="startGame()">Take the Field →</button>
+  </div>
+</div>
+
+<div class="hud">
+  <div class="force blue">
+    <span class="name">Your Army (Azure)</span>
+    <span class="val" id="blueVal">99</span>
+    <div class="bar"><span id="blueBar"></span></div>
+  </div>
+  <div class="force red">
+    <span class="name">Enemy (Vermillion)</span>
+    <span class="val" id="redVal">99</span>
+    <div class="bar"><span id="redBar"></span></div>
+  </div>
+</div>
+
+<div class="field-wrap">
+  <canvas id="field" width="560" height="560"></canvas>
+  <div class="end" id="endScreen">
+    <h2 id="endTitle"></h2>
+    <p id="endText"></p>
+    <button style="max-width:200px" onclick="showChoice()">Take the Field Again</button>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="btnrow">
+    <button id="orderBtn" onclick="resolve()">Give the Order</button>
+    <button class="ghost" onclick="showChoice()">Reset</button>
+  </div>
+</div>
+
+<div class="log" id="log">The lines are drawn. Set your corps and give the order.</div>
+
+<script>
+const N = 64;            // grid resolution
+const CELL = 560/N;      // px per cell
+const SIGMA = 4;         // corps lobe radius parameter
+const STRIDE = 9;        // max cells a corps advances per turn
+const cv = document.getElementById('field');
+const ctx = cv.getContext('2d');
+
+// ---- field math ----
+function blank(){ return new Float32Array(N*N); }
+function idx(x,y){ return y*N+x; }
+
+// An ARMY is three corps, each {x,y,mass,hp}. hp is current strength;
+// mass for rendering is derived from hp. Position (x,y) is the corps centre.
+// The rendered/heat field is the sum of three windowed-gaussian lobes.
+let blue, red, target, turn, over, phase;
+
+// split a total strength into three whole-number corps (as equal as possible)
+function splitThree(total){
+  const base=Math.floor(total/3), extra=total-base*3;
+  return [base+(extra>0?1:0), base+(extra>1?1:0), base];
+}
+
+function freshArmy(side, total){
+  // side 'blue' on the left, 'red' on the right; three corps stacked vertically
+  const x = side==='blue' ? N*0.16 : N*0.84;
+  const h = splitThree(total);
+  return [
+    {x, y:N*0.30, hp:h[0]},
+    {x, y:N*0.50, hp:h[1]},
+    {x, y:N*0.70, hp:h[2]},
+  ];
+}
+
+// Randomized, asymmetric opening: three corps scattered within this side's own
+// territory. Forward depth, vertical centre, and spread all vary per side and
+// independently, so openings are sometimes lopsided in POSITION. Forward depth is
+// capped so the armies never start already in contact.
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function randomArmy(side, total){
+  const depth = rnd(0.10, 0.36);                       // how far forward the mass sits
+  const cx = side==='blue' ? N*depth : N*(1-depth);
+  const cy = rnd(N*0.30, N*0.70);                      // vertical centre of the army
+  const spreadX = rnd(2, 9);                           // tight fist vs strung out
+  const spreadY = rnd(6, 16);
+  const h = splitThree(total);
+  const corps=[];
+  for(let i=0;i<3;i++){
+    let x = cx + rnd(-spreadX, spreadX);
+    let y = cy + (i-1)*rnd(spreadY*0.5, spreadY) + rnd(-2,2);
+    x=Math.max(4, Math.min(N-5, x));
+    y=Math.max(4, Math.min(N-5, y));
+    corps.push({x, y, hp:h[i]});
+  }
+  return corps;
+}
+
+// Total strength per side from the chosen handicap. 'even' = 99 each; otherwise
+// the favoured side fields 120 and the other 80 — a real, felt advantage.
+const STRONG=120, WEAK=80, FAIR=99;
+function sideTotal(side){
+  if(strength==='reinforced') return side==='blue'?STRONG:WEAK;   // you favoured
+  if(strength==='outnumbered') return side==='blue'?WEAK:STRONG;  // enemy favoured
+  return FAIR;
+}
+
+// build whichever opening the chosen layout calls for, at the chosen strength
+function makeArmy(side){
+  const total=sideTotal(side);
+  return layout==='scattered' ? randomArmy(side,total) : freshArmy(side,total);
+}
+
+function buildField(army){
+  const a=blank();
+  for(const c of army){
+    if(c.hp<=0.01) continue;
+    addLobe(a, c.x, c.y, SIGMA, c.hp);
+  }
+  return a;
+}
+
+function addLobe(arr, cx, cy, sigma, mass){
+  const R=sigma*2.6, R2=R*R;
+  const rim=Math.exp(-R2/(2*sigma*sigma));
+  const cells=[]; let s=0;
+  const x0=Math.max(0,Math.floor(cx-R)), x1=Math.min(N-1,Math.ceil(cx+R));
+  const y0=Math.max(0,Math.floor(cy-R)), y1=Math.min(N-1,Math.ceil(cy+R));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const d2=(x-cx)**2+(y-cy)**2;
+    if(d2<=R2){
+      const v=Math.exp(-d2/(2*sigma*sigma))-rim;
+      if(v>0){ cells.push([idx(x,y),v]); s+=v; }
+    }
+  }
+  if(s<=0) return;
+  const k=mass/s;
+  for(const [i,v] of cells) arr[i]+=v*k;
+}
+
+function armyMass(army){ let s=0; for(const c of army) s+=Math.max(0,c.hp); return s; }
+function maxVal(a){let m=0;for(let i=0;i<a.length;i++)if(a[i]>m)m=a[i];return m||1;}
+
+// REF = peak density of a single full-strength (33 hp) corps. Used as the fixed
+// brightness reference in rendering so absolute strength is legible on the map.
+const REF = (function(){
+  const a=blank(); addLobe(a, 32, 32, SIGMA, 33); return maxVal(a);
+})();
+
+// ---- movement: each corps strides toward its node, capped at STRIDE ----
+// Corps cannot occupy the same ground: after moving, any two that are closer
+// than MIN_SEP are gently pushed apart. This is what makes concentration
+// meaningful — massing your corps forms a dense BROAD front (a wall or wedge),
+// not a single useless spike of three lobes stacked on one cell.
+const MIN_SEP = 6;   // minimum cells between corps centres
+function marchArmy(army, nodes){
+  for(let i=0;i<army.length;i++){
+    const c=army[i], nd=nodes[i];
+    if(!nd || c.hp<=0.01) continue;       // no order, or corps destroyed
+    const dx=nd.x-c.x, dy=nd.y-c.y, d=Math.hypot(dx,dy)||1;
+    const mv=Math.min(d, STRIDE);
+    c.x=Math.max(3,Math.min(N-4, c.x+dx/d*mv));
+    c.y=Math.max(3,Math.min(N-4, c.y+dy/d*mv));
+  }
+  separate(army);
+}
+
+function separate(army){
+  // a few relaxation passes pushing overlapping corps apart
+  const live=army.filter(c=>c.hp>0.01);
+  for(let pass=0;pass<4;pass++){
+    for(let i=0;i<live.length;i++)for(let j=i+1;j<live.length;j++){
+      const a=live[i], b=live[j];
+      let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
+      if(d<1e-3){ dx=1; dy=0; d=1; }          // exactly stacked: nudge apart
+      if(d<MIN_SEP){
+        const push=(MIN_SEP-d)/2;
+        const ux=dx/d, uy=dy/d;
+        a.x-=ux*push; a.y-=uy*push;
+        b.x+=ux*push; b.y+=uy*push;
+      }
+    }
+    for(const c of live){
+      c.x=Math.max(3,Math.min(N-4,c.x));
+      c.y=Math.max(3,Math.min(N-4,c.y));
+    }
+  }
+}
+
+// ---- AI: two doctrines selected by `difficulty` ----
+let difficulty='easy';
+let layout='fixed';   // 'fixed' = mirrored opening, 'scattered' = randomized asymmetric
+let strength='even';  // 'even' | 'reinforced' (you favoured) | 'outnumbered' (enemy favoured)
+
+function liveCorps(army){ return army.filter(c=>c.hp>0.01); }
+function corpsCentre(army){
+  const L=liveCorps(army); if(!L.length) return {x:N/2,y:N/2};
+  let x=0,y=0; for(const c of L){x+=c.x;y+=c.y;} return {x:x/L.length,y:y/L.length};
+}
+
+function aiNodes(){
+  return difficulty==='hard' ? aiHard() : aiEasy();
+}
+
+// EASY: a single fixed doctrine — find your weakest corps, send two corps to
+// converge on it, screen with the third. Predictable, and baitable once you
+// see the pattern.
+function aiEasy(){
+  const RL=liveCorps(red); if(!RL.length) return red.map(()=>null);
+  let weak=0;
+  for(let i=1;i<blue.length;i++)
+    if(blue[i].hp>0.01 && (blue[weak].hp<=0.01 || blue[i].hp<blue[weak].hp)) weak=i;
+  const tgt=blue[weak];
+  const idxs=red.map((c,i)=>i).filter(i=>red[i].hp>0.01);
+  const order=idxs.sort((a,b)=>
+    Math.hypot(red[a].x-tgt.x,red[a].y-tgt.y)-Math.hypot(red[b].x-tgt.x,red[b].y-tgt.y));
+  const nodes=red.map(()=>null);
+  const standoff=7;
+  for(let k=0;k<Math.min(2,order.length);k++){
+    const ri=order[k];
+    const dx=tgt.x-red[ri].x, dy=tgt.y-red[ri].y, d=Math.hypot(dx,dy)||1;
+    const reach=Math.max(0,d-standoff);
+    nodes[ri]={x:red[ri].x+dx/d*reach + (k?2:-2), y:red[ri].y+dy/d*reach + (k?6:-6)};
+  }
+  if(order.length>2){
+    const sc=order[2], bc=corpsCentre(blue);
+    const dx=bc.x-red[sc].x, dy=bc.y-red[sc].y, d=Math.hypot(dx,dy)||1;
+    nodes[sc]={x:red[sc].x+dx/d*Math.max(0,d-14), y:red[sc].y+dy/d*Math.max(0,d-14)};
+  }
+  return nodes;
+}
+
+// HARD: keeps its corps cohesive (so it can't be split by a dangle) and reads
+// the player. If the player has concentrated their corps into a tight cluster,
+// their flanks are bare — the AI refuses the head-on wall and races its whole
+// mass at the player's weakest corps to break the line before the hammer lands.
+// Otherwise it massed-attacks the weakest corps nearest its own force.
+function aiHard(){
+  const RL=liveCorps(red), BL=liveCorps(blue);
+  if(!RL.length||!BL.length) return red.map(()=>null);
+  const rc=corpsCentre(red);
+  // how clustered is the player? (avg pairwise distance among their corps)
+  let pd=0,np=0;
+  for(let i=0;i<BL.length;i++)for(let j=i+1;j<BL.length;j++){pd+=Math.hypot(BL[i].x-BL[j].x,BL[i].y-BL[j].y);np++;}
+  pd = np?pd/np:99;
+  const clustered = pd < 11;
+  let aim, commitAll;
+  if(clustered){
+    // strike the player's weakest corps with everything — punish the concentration
+    let weak=BL[0]; for(const c of BL) if(c.hp<weak.hp) weak=c;
+    aim={x:weak.x, y:weak.y}; commitAll=true;
+  } else {
+    // hit the weakest corps that's nearest our own mass, staying cohesive
+    let best=BL[0], bs=-1e9;
+    for(const b of BL){
+      const dr=Math.hypot(b.x-rc.x,b.y-rc.y);
+      const sc=(40-b.hp)-dr*0.6;
+      if(sc>bs){bs=sc;best=b;}
+    }
+    aim={x:best.x, y:best.y};
+    commitAll = armyMass(red) >= armyMass(blue);
+  }
+  const nodes=red.map(()=>null);
+  const ri=red.map((c,i)=>i).filter(i=>red[i].hp>0.01)
+    .sort((a,b)=>Math.hypot(red[a].x-aim.x,red[a].y-aim.y)-Math.hypot(red[b].x-aim.x,red[b].y-aim.y));
+  const commit = commitAll ? ri.length : Math.min(2,ri.length);
+  const standoff=7;
+  for(let k=0;k<commit;k++){
+    const r=ri[k];
+    const dx=aim.x-red[r].x, dy=aim.y-red[r].y, d=Math.hypot(dx,dy)||1;
+    const reach=Math.max(0,d-standoff);
+    nodes[r]={x:red[r].x+dx/d*reach, y:red[r].y+dy/d*reach};
+  }
+  // any reserve corps edges back toward our own mass, staying cohesive
+  for(let k=commit;k<ri.length;k++){
+    const r=ri[k];
+    nodes[r]={x:red[r].x+(rc.x-red[r].x)*0.2, y:red[r].y+(rc.y-red[r].y)*0.2};
+  }
+  return nodes;
+}
+
+// ---- clash: stochastic local-density over the two summed fields ----
+// In each contested cell, the denser side is favoured to win the cell, and
+// the LOSER takes damage proportional to the WINNER's local strength. This
+// is the heart of the model: where you have overwhelming local mass, you do
+// overwhelming local damage — concentration of force is rewarded, and an even
+// line against an even line merely trades. Returns true if any contact.
+function clash(mover){
+  const bf=buildField(blue), rf=buildField(red);
+  const bMax=maxVal(bf), rMax=maxVal(rf);
+  const ENGAGE=0.02;
+  const bT=bMax*ENGAGE, rT=rMax*ENGAGE;
+  const PRESS=1.15;
+  const bDmg=blank(), rDmg=blank();
+  let contested=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const i=idx(x,y);
+    const b=bf[i], r=rf[i];
+    if(b<bT||r<rT) continue;
+    contested++;
+    let bw=b, rw=r;
+    if(mover==='blue') bw*=PRESS; else rw*=PRESS;
+    const pBlue=bw/(bw+rw);
+    if(Math.random()<pBlue){
+      // blue wins the cell: red takes damage scaled by blue's local strength
+      rDmg[i]+= b;
+    } else {
+      bDmg[i]+= r;
+    }
+  }
+  applyDamage(blue, bDmg);
+  applyDamage(red, rDmg);
+  return contested>0;
+}
+
+const LETHALITY=0.12;   // converts field damage into hp loss (tuned: concentration decisive, even-spread stalls)
+function applyDamage(army, dmgField){
+  // Distribute each cell's damage among this side's corps in proportion to
+  // how much of that cell's mass each corps contributed (its lobe share).
+  // A corps that isn't really present at a cell takes none of that cell's hits.
+  const R=SIGMA*2.6, R2=R*R, rim=Math.exp(-R2/(2*SIGMA*SIGMA));
+  // precompute each corps' lobe value at every damaged cell on the fly
+  for(const c of army){
+    if(c.hp<=0) continue;
+    let took=0;
+    const x0=Math.max(0,Math.floor(c.x-R)), x1=Math.min(N-1,Math.ceil(c.x+R));
+    const y0=Math.max(0,Math.floor(c.y-R)), y1=Math.min(N-1,Math.ceil(c.y+R));
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+      const i=idx(x,y);
+      const d=dmgField[i];
+      if(d<=0) continue;
+      const d2=(x-c.x)**2+(y-c.y)**2;
+      if(d2>R2) continue;
+      const lobe=Math.exp(-d2/(2*SIGMA*SIGMA))-rim;
+      if(lobe<=0) continue;
+      // share = this corps' lobe value / total side lobe at the cell.
+      // total side lobe ≈ the field value, but recomputing is costly; use the
+      // corps lobe directly scaled — damage was already set to enemy strength,
+      // so weight by this corps' relative presence among friendly corps.
+      took += d * lobe / friendlyLobeSum(army, x, y, R2, rim);
+    }
+    c.hp=Math.max(0, c.hp - took*LETHALITY);
+  }
+}
+function friendlyLobeSum(army, x, y, R2, rim){
+  let s=0;
+  for(const c of army){
+    if(c.hp<=0) continue;
+    const d2=(x-c.x)**2+(y-c.y)**2;
+    if(d2>R2) continue;
+    const v=Math.exp(-d2/(2*SIGMA*SIGMA))-rim;
+    if(v>0) s+=v;
+  }
+  return s||1;
+}
+
+// ---- turn sequence (click-gated phases) ----
+function setLog(t){ document.getElementById('log').textContent=t; }
+function setBtn(t){ document.getElementById('orderBtn').textContent=t; }
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+
+// Two beats per turn. 'plan' = you set corps and confirm; one click runs your
+// whole half (advance, brief beat, then the clash) animated together. 'enemy'
+// = one click runs their whole half the same way, ending the turn.
+async function resolve(){
+  if(over || phase==='busy') return;
+  const btn=document.getElementById('orderBtn');
+
+  if(phase==='plan'){
+    phase='busy'; btn.disabled=true;
+    // your advance
+    marchArmy(blue, target);
+    draw(); updateHUD();
+    setLog('Your corps advance…');
+    await wait(480);
+    if(over) return;
+    // your clash, folded into the same beat
+    const fought=clash('blue');
+    draw(); updateHUD();
+    if(checkEnd()) return;
+    setLog(fought ? 'Your corps strike home. Now see the enemy answer.'
+                  : 'No contact — your corps did not reach them. See the enemy move.');
+    phase='enemy'; btn.disabled=false; setBtn('See the Enemy');
+    return;
+  }
+
+  if(phase==='enemy'){
+    phase='busy'; btn.disabled=true;
+    // enemy advance
+    marchArmy(red, aiNodes());
+    draw(); updateHUD();
+    setLog('The Vermillion manoeuvres and closes…');
+    await wait(480);
+    if(over) return;
+    // enemy clash, folded in
+    const fought=clash('red');
+    draw(); updateHUD();
+    if(checkEnd()) return;
+    turn++;
+    target=blue.map(c=>({x:c.x,y:c.y}));   // default: hold position unless dragged
+    draw();
+    setLog((fought?'The dust settles. ':'They failed to reach you. ')
+      +'Turn '+turn+' — set your corps and give the order.');
+    phase='plan'; btn.disabled=false; setBtn('Give the Order');
+    return;
+  }
+}
+
+function checkEnd(){
+  const bm=armyMass(blue), rm=armyMass(red);
+  if(rm<=6 || bm<=6){
+    over=true;
+    document.getElementById('orderBtn').disabled=true;
+    const win=bm>rm;
+    const es=document.getElementById('endScreen');
+    document.getElementById('endTitle').textContent=win?'The Field Is Yours':'The Line Has Broken';
+    document.getElementById('endText').textContent=win
+      ?'The enemy is shattered and scattered across the field. The day is yours.'
+      :'Your line is broken and your corps overrun. The field is lost.';
+    es.style.display='flex';
+    setLog(win?'Victory. The enemy line is broken.':'Defeat. Your line is broken.');
+    setBtn('Give the Order'); phase='over';
+    return true;
+  }
+  return false;
+}
+
+function updateHUD(){
+  const bm=Math.max(0,armyMass(blue)), rm=Math.max(0,armyMass(red));
+  document.getElementById('blueVal').textContent=Math.round(bm);
+  document.getElementById('redVal').textContent=Math.round(rm);
+  document.getElementById('blueBar').style.width=Math.min(100,bm)+'%';
+  document.getElementById('redBar').style.width=Math.min(100,rm)+'%';
+}
+
+// ---- rendering ----
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#0f1116'; ctx.fillRect(0,0,cv.width,cv.height);
+  const bf=buildField(blue), rf=buildField(red);
+  // Normalize against a FIXED reference — the peak density of one full-strength
+  // (33 hp) corps — rather than each army's own current peak. This way absolute
+  // strength shows: a strong army renders bright and broad, a depleted one dim
+  // and thin, so a 60-vs-20 advantage is visible at a glance. Density above the
+  // reference (massed corps) brightens further, up to a cap.
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const b=bf[idx(x,y)]/REF, r=rf[idx(x,y)]/REF;
+    if(b<0.02&&r<0.02) continue;
+    const bi=Math.min(1.25, Math.sqrt(b));   // sqrt curve, allow slight over-bright
+    const ri=Math.min(1.25, Math.sqrt(r));
+    const R=Math.round(15 + ri*150 + bi*8);
+    const G=Math.round(17 + bi*62 + ri*20);
+    const B=Math.round(22 + bi*150 + ri*10);
+    ctx.fillStyle='rgb('+Math.min(255,R)+','+Math.min(255,G)+','+Math.min(255,B)+')';
+    ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+  }
+  // faint grid
+  ctx.strokeStyle='rgba(70,78,94,.22)'; ctx.lineWidth=1;
+  for(let i=0;i<=N;i+=8){
+    ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,cv.height);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(cv.width,i*CELL);ctx.stroke();
+  }
+  // enemy corps centres (small vermillion rings)
+  for(const c of red) if(c.hp>0.01) ring(c, '#efb3aa', false);
+  // your corps centres + draggable nodes
+  for(let i=0;i<blue.length;i++){
+    const c=blue[i];
+    if(c.hp>0.01) ring(c, '#bcd6ef', true);
+    // node (where this corps will advance to) shown during aim
+    if(phase==='plan' && target && target[i] && c.hp>0.01){
+      const nd=target[i];
+      const px=nd.x*CELL, py=nd.y*CELL;
+      // line from corps to node
+      ctx.strokeStyle='rgba(143,176,207,.4)'; ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(c.x*CELL,c.y*CELL);ctx.lineTo(px,py);ctx.stroke();
+      // node marker
+      ctx.fillStyle='rgba(188,214,239,.16)';
+      ctx.strokeStyle='rgba(188,214,239,.9)';
+      ctx.setLineDash([3,3]); ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(px,py,9,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function ring(c, color, big){
+  const px=c.x*CELL, py=c.y*CELL;
+  // size scales gently with hp so you can read corps strength
+  const rad=(big?4:3)+Math.min(5, c.hp/12);
+  ctx.lineWidth=2; ctx.strokeStyle=color; ctx.fillStyle='#0f1116';
+  ctx.beginPath();ctx.arc(px,py,rad,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.arc(px,py,1.6,0,Math.PI*2);ctx.fill();
+  // exact strength, so you can read it without inferring from brightness
+  ctx.font='10px Georgia';
+  ctx.fillStyle=color;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(Math.round(c.hp), px, py-rad-7);
+}
+
+// ---- input: drag the three nodes ----
+let dragIdx=-1;
+function pos(e){
+  const rect=cv.getBoundingClientRect();
+  const cx=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+  const cy=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
+  // convert from displayed pixels to grid cells using the ACTUAL rendered
+  // size (the canvas is scaled responsively, so rect.width may not be 560).
+  return { x: cx/rect.width*N, y: cy/rect.height*N };
+}
+function pickNode(p){
+  if(phase!=='plan'||!target) return -1;
+  let best=-1, bd=6; // grab radius in cells
+  for(let i=0;i<target.length;i++){
+    if(blue[i].hp<=0.01) continue;
+    const d=Math.hypot(target[i].x-p.x, target[i].y-p.y);
+    if(d<bd){bd=d;best=i;}
+  }
+  return best;
+}
+function down(e){
+  if(over||phase!=='plan') return;
+  e.preventDefault();
+  const p=pos(e);
+  dragIdx=pickNode(p);
+  if(dragIdx<0){
+    // if you click empty space near a corps, grab that corps' node anyway
+    let best=-1,bd=99;
+    for(let i=0;i<target.length;i++){if(blue[i].hp<=0.01)continue;const d=Math.hypot(blue[i].x-p.x,blue[i].y-p.y);if(d<bd){bd=d;best=i;}}
+    if(best>=0 && bd<10){ dragIdx=best; target[dragIdx]={x:p.x,y:p.y}; draw(); }
+    return;
+  }
+  target[dragIdx]={x:p.x,y:p.y}; draw();
+}
+function move(e){
+  if(dragIdx<0) return;
+  e.preventDefault();
+  const p=pos(e);
+  target[dragIdx]={x:Math.max(0,Math.min(N-1,p.x)), y:Math.max(0,Math.min(N-1,p.y))};
+  draw();
+}
+function up(){ dragIdx=-1; }
+cv.addEventListener('mousedown',down);
+cv.addEventListener('mousemove',move);
+window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false});
+cv.addEventListener('touchmove',move,{passive:false});
+cv.addEventListener('touchend',up);
+
+function restart(){
+  blue=makeArmy('blue'); red=makeArmy('red');
+  target=blue.map(c=>({x:c.x,y:c.y}));
+  turn=1; over=false; phase='plan'; dragIdx=-1;
+  document.getElementById('endScreen').style.display='none';
+  // hide the setup choosers and reveal the board + hud
+  document.getElementById('setup').style.display='none';
+  document.getElementById('choiceScreen').classList.remove('overlay');
+  document.getElementById('openingScreen').classList.remove('overlay');
+  document.getElementById('choiceScreen').style.display='none';
+  document.getElementById('openingScreen').style.display='none';
+  document.querySelector('.hud').style.display='flex';
+  document.querySelector('.field-wrap').style.display='block';
+  document.querySelector('.controls').style.display='block';
+  document.querySelector('.log').style.display='block';
+  document.getElementById('orderBtn').disabled=false;
+  setBtn('Give the Order');
+  const who = difficulty==='hard' ? 'the Marshal' : 'the Cadet';
+  const field = layout==='scattered' ? ' The ground is uneven — read it.' : '';
+  const odds = strength==='reinforced' ? ' You hold the heavier force.'
+             : strength==='outnumbered' ? ' You are outnumbered — concentrate.'
+             : '';
+  setLog('Turn 1 — you face '+who+'.'+field+odds+' Set your corps and give the order.');
+  draw(); updateHUD();
+}
+
+// Bring the choosers back. If a board already exists (replay), show them as an
+// overlay on the board; reset the chooser to step 1 (opponent/strength).
+function showChoice(){
+  over=true; dragIdx=-1;
+  document.getElementById('orderBtn').disabled=true;
+  document.getElementById('endScreen').style.display='none';
+  const cs=document.getElementById('choiceScreen'), os=document.getElementById('openingScreen');
+  cs.classList.add('overlay'); os.classList.add('overlay');
+  os.style.display='none';
+  cs.style.display='flex';
+  document.getElementById('setup').style.display='block';
+}
+
+const OPP_HINTS={
+  easy:'The Cadet follows one doctrine you can learn to read.',
+  hard:'The Marshal reads you back — and punishes a careless plan.'
+};
+const STR_HINTS={
+  reinforced:'You take the field with 120 to the enemy\u2019s 80 — the advantage is yours to press.',
+  even:'Equal armies — the contest is decided by skill alone.',
+  outnumbered:'You field 80 against 120 — outnumbered, you must win locally what you cannot win overall.'
+};
+
+function highlight(groupId, value){
+  const g=document.getElementById(groupId);
+  for(const b of g.querySelectorAll('.opt'))
+    b.classList.toggle('sel', b.dataset.v===value);
+}
+function pickOpp(level){
+  difficulty=level;
+  highlight('oppOpts', level);
+  document.getElementById('oppHint').textContent=OPP_HINTS[level];
+}
+function pickStr(s){
+  strength=s;
+  highlight('strOpts', s);
+  document.getElementById('strHint').textContent=STR_HINTS[s];
+}
+
+// first screen done — advance to the Ground choice (keep overlay state if set)
+function toGround(){
+  const cs=document.getElementById('choiceScreen'), os=document.getElementById('openingScreen');
+  if(cs.classList.contains('overlay')) os.classList.add('overlay');
+  cs.style.display='none';
+  os.style.display='flex';
+  // reflect the current layout selection and hint
+  highlight('groundOpts', layout);
+  document.getElementById('groundHint').textContent=GROUND_HINTS[layout];
+}
+
+const GROUND_HINTS={
+  fixed:'Even, mirrored lines — a fair and equal start.',
+  scattered:'Uneven ground — your corps and theirs scattered, one side perhaps better placed.'
+};
+function pickGround(g){
+  layout=g;
+  highlight('groundOpts', g);
+  document.getElementById('groundHint').textContent=GROUND_HINTS[g];
+}
+
+// Ground chosen — begin with the selected layout
+function startGame(){
+  restart();
+}
+
+// COLD START: board and hud hidden; the choosers sit in page flow below the
+// instructions. The board is built behind the scenes so it can be drawn once a
+// battle begins. (No overlay on first load — the choosers are part of the page.)
+document.querySelector('.hud').style.display='none';
+document.querySelector('.field-wrap').style.display='none';
+document.querySelector('.controls').style.display='none';
+document.querySelector('.log').style.display='none';
+blue=makeArmy('blue'); red=makeArmy('red'); target=blue.map(c=>({x:c.x,y:c.y}));
+over=true; phase='plan';
+
+</script>
+</body>
+</html>
